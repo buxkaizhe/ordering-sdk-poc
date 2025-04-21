@@ -41,7 +41,7 @@ class OrderingSDK<T> {
 
   Future<dynamic> _fetchToken() async {
     final httpClient = HttpClient();
-    final url = Uri.parse('http://localhost:3000/token/$restaurantId');
+    final url = Uri.parse('http://10.0.2.2:3000/token/$restaurantId');
     final request = await httpClient.getUrl(url);
     // request.headers
     //     .set('Authorization', 'Basic ${base64.encode(utf8.encode(apiKey))}');
@@ -60,7 +60,7 @@ class OrderingSDK<T> {
   Future<void> _fetchOrders() async {
     final client = HttpClient();
     final request = await client
-        .getUrl(Uri.parse('http://localhost:3000/orders/$restaurantId'));
+        .getUrl(Uri.parse('http://10.0.2.2:3000/orders/$restaurantId'));
     request.headers.set('Content-Type', 'application/json');
     request.headers.set('Accept', 'application/json');
     final response = await request.close();
@@ -114,13 +114,24 @@ class OrderingSDK<T> {
       }
     }, onAction: (message) async {
       // print('[ABLY]: ACTION\n${message.toString()}');
+    }, onDisconnect: () async {
+      print('[ABLY]: Disconnected, reconnecting...');
+      Timer.periodic(const Duration(seconds: 5), (timer) async {
+        try {
+          await listen(onIncomingOrder: onIncomingOrder);
+          print('[ABLY]: Reconnected!');
+          timer.cancel();
+        } catch (e) {
+          print('[ABLY]: Error reconnecting: $e, retrying in 5 seconds');
+        }
+      });
     });
   }
 
   Future<void> acknowledgeOrder(FdoIncomingOrder order) async {
     final client = HttpClient();
     final request = await client
-        .postUrl(Uri.parse('http://localhost:3000/order/${order.id}/ack'));
+        .postUrl(Uri.parse('http://10.0.2.2:3000/order/${order.id}/ack'));
     request.headers.set('Content-Type', 'application/json');
     request.headers.set('Accept', 'application/json');
     final response = await request.close();

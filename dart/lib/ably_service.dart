@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print, constant_identifier_names
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -59,7 +60,7 @@ class AblyService {
       port: 443,
       queryParameters: {
         'accessToken': token,
-        'echo': 'false',
+        'echo': 'true',
       },
     );
 
@@ -99,15 +100,24 @@ class AblyService {
     ) onMessage, {
     Future<void> Function(Map<String, dynamic>)? onAction,
     Future<void> Function(dynamic)? onParsingError,
+    required Future<void> Function() onDisconnect,
   }) {
-    ws.stream.listen((data) {
+    ws.stream.timeout(const Duration(seconds: 20), onTimeout: (_) async {
+      await onDisconnect.call();
+      _.close();
+      ws.sink.close();
+    }).listen((data) {
       try {
         final json = jsonDecode(data);
         ABLY_ACTION action = ABLY_ACTION.values[json['action']];
         final prettyMessage = encoder.convert(json);
-
+        // print('[ABLY]: ${action.name}\n$prettyMessage');
         switch (action) {
+          case ABLY_ACTION.HEARTBEAT:
+            print('[ABLY]: ${action.name}\n$prettyMessage');
+            break;
           case ABLY_ACTION.ATTACHED: // ATTACHED
+            print('[ABLY]: ${action.name}\n$prettyMessage');
             _enterPresence();
             break;
           case ABLY_ACTION.MESSAGE: // MESSAGE
@@ -128,12 +138,15 @@ class AblyService {
       } catch (e) {
         onParsingError?.call(e);
       }
-    }, onError: (error) {
-      print('WebSocket error: $error');
-    }, onDone: () {
-      print('WebSocket closed');
+    }, onError: (error) async {
+      print('[ABLY]: WebSocket error: $error');
+      await onDisconnect.call();
+      ws.sink.close();
+    }, onDone: () async {
+      print('[ABLY]: WebSocket done');
+      await onDisconnect.call();
+      ws.sink.close();
     });
-
     _connectChannel();
   }
 

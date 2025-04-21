@@ -53,6 +53,7 @@ export async function main() {
     // Get all pending orders for a restaurant
     app.get('/orders/:restaurantId', (req: Request, res: Response) => {
       const restaurantId = req.params.restaurantId;
+      console.log('restaurantId', restaurantId);
       res.send(Orders.orders.filter((o) => o.status == 'PENDING'));
       return;
     });
